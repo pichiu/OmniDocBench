@@ -20,5 +20,7 @@ old_trace
 result/
 configs/
 .bmad/
+.bmad-ephemeral/
 .claude/
 .gemini/
+.clinerules/
