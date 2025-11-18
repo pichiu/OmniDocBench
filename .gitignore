@@ -24,3 +24,4 @@ configs/
 .claude/
 .gemini/
 .clinerules/
+.env

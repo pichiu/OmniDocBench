@@ -36,4 +36,7 @@ workflow_status:
   tech-spec: docs/tech-spec.md  # agent: pm
 
   # Phase 2: Implementation
-  sprint-planning: required  # agent: sm
+  sprint-planning: docs/sprint-artifacts/sprint-status.yaml  # agent: sm
+
+  # Phase 3: Review & Retrospective
+  retrospective: docs/sprint-artifacts/epic-1-retro-2025-11-14.md  # agent: sm

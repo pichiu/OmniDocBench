@@ -1,0 +1,217 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>DeepSeek-OCR API 推理腳本</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-14</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-1-deepseek-ocr-api-infer.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>開發人員或研究人員</asA>
+    <iWant>通過 OpenAI Compatible API 調用遠程 vllm DeepSeek-OCR 服務進行文檔解析</iWant>
+    <soThat>我可以使用輕量級客戶端批量處理文檔圖像，無需在本地安裝完整的 vllm、torch 和 transformers 依賴</soThat>
+    <tasks>
+      - Task 1: 創建文件骨架 (AC: #1)
+        - 創建 tools/model_infer/deepseek_ocr_inf.py
+        - 添加必要的導入語句
+        - 定義 PROMPT 常量
+        - 添加 if __name__ == "__main__": 入口
+      - Task 2: 實現後處理函數 (AC: #4)
+        - 實現 clean_formula(text) 函數
+        - 實現 re_match(text) 函數
+      - Task 3: 實現 API 調用函數 (AC: #2)
+        - 實現 get_deepseek_response(image_path, client, model_name)
+      - Task 4: 實現單圖處理函數 (AC: #3, #4)
+        - 實現 process_image(args) 函數
+      - Task 5: 實現主函數 (AC: #5, #6, #7)
+        - 實現 main() 函數
+      - Task 6: 測試和調試 (AC: #1-7)
+        - 單圖測試
+        - 批量測試
+        - 錯誤場景測試
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. 腳本創建和執行 - 腳本能夠成功運行且無語法錯誤
+    2. API 調用成功 - API 返回成功響應且包含 Markdown 格式的文檔內容
+    3. 雙輸出文件生成 - 生成 _det.md (原始) 和 .md (清理後) 兩個文件
+    4. 後處理正確性 - 移除 \quad(...) 標記、特殊標記、多餘換行和 center 標籤
+    5. 並行處理 - 多線程並行工作且顯示 tqdm 進度條
+    6. 錯誤處理 - 腳本不崩潰，顯示錯誤日誌，失敗的圖像被跳過
+    7. 結果統計 - 顯示處理統計信息（總數/成功/失敗）
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>Technical Specification</title>
+        <section>Implementation Details</section>
+        <snippet>新增 tools/model_infer/deepseek_ocr_inf.py 推理腳本，通過 OpenAI Compatible API 調用已架設的 vllm DeepSeek-OCR 服務。使用 OpenAI SDK 調用 vllm API（base64 圖像傳輸），集成 DeepSeek-OCR 專用後處理邏輯，生成雙輸出：原始 + 清理後的 Markdown。</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>Technical Specification</title>
+        <section>Technical Approach</section>
+        <snippet>設計決策 - OpenAI Compatible API 選擇理由：服務端處理圖像預處理（vllm 已配置 DeepseekOCRProcessor），輕量級客戶端（不需要 torch/transformers），標準化接口（與 gpt_4o_inf.py 架構一致）。API 調用流程包含圖像 base64 編碼、OpenAI SDK 調用、響應處理。</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>Technical Specification</title>
+        <section>Existing Patterns to Follow</section>
+        <snippet>從 gpt_4o_inf.py 遵循：OpenAI SDK 使用、Base64 圖像編碼、多線程並行處理（ThreadPoolExecutor）、錯誤處理、命令行參數。從 run_dpsk_ocr_eval_batch.py 遵循：雙輸出生成、後處理函數（clean_formula, re_match）、進度條和日誌。</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Architecture Documentation</title>
+        <section>Module Structure</section>
+        <snippet>tools/model_infer/ 目錄包含模型推理腳本。這是獨立工具腳本，不參與核心架構的註冊表模式或管道架構。推理腳本直接處理圖像到 Markdown 的轉換，不調用評估任務或指標系統。</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>tools/model_infer/gpt_4o_inf.py</path>
+        <kind>inference_script</kind>
+        <symbol>get_gpt_response</symbol>
+        <lines>39-68</lines>
+        <reason>OpenAI API 調用模板 - 展示如何使用 OpenAI SDK、base64 編碼圖像、構建請求消息、錯誤處理。參考其 API 調用結構和異常處理模式。</reason>
+      </file>
+      <file>
+        <path>tools/model_infer/gpt_4o_inf.py</path>
+        <kind>inference_script</kind>
+        <symbol>process_image</symbol>
+        <lines>70-80</lines>
+        <reason>單圖處理流程模板 - 展示如何提取文件名、調用 API 函數、保存輸出。參考其文件處理和錯誤處理模式。</reason>
+      </file>
+      <file>
+        <path>tools/model_infer/gpt_4o_inf.py</path>
+        <kind>inference_script</kind>
+        <symbol>main</symbol>
+        <lines>82-111</lines>
+        <reason>主函數架構模板 - 展示 argparse 參數解析、ThreadPoolExecutor 多線程處理、tqdm 進度條、結果統計。參考其完整的批處理流程。</reason>
+      </file>
+      <file>
+        <path>configs/run_dpsk_ocr_eval_batch.py</path>
+        <kind>evaluation_script</kind>
+        <symbol>clean_formula</symbol>
+        <lines>53-68</lines>
+        <reason>公式清理邏輯 - 使用正則表達式 r'\\\[(.*?)\\\]' 匹配公式，移除 \quad\s*\([^)]*\) 模式。需要完全移植此函數。</reason>
+      </file>
+      <file>
+        <path>configs/run_dpsk_ocr_eval_batch.py</path>
+        <kind>evaluation_script</kind>
+        <symbol>re_match</symbol>
+        <lines>70-79</lines>
+        <reason>特殊標記提取 - 使用正則表達式提取 <|ref|>...<|det|> 標記，返回匹配列表。需要完全移植此函數。</reason>
+      </file>
+      <file>
+        <path>configs/run_dpsk_ocr_eval_batch.py</path>
+        <kind>evaluation_script</kind>
+        <symbol>main processing loop</symbol>
+        <lines>145-161</lines>
+        <reason>雙輸出邏輯 - 先保存 _det.md 原始輸出，再應用 clean_formula 和 re_match 後保存 .md 清理後輸出。參考其完整的後處理流程。</reason>
+      </file>
+      <file>
+        <path>configs/DeepSeek-OCR-vllm/config.py</path>
+        <kind>config</kind>
+        <symbol>PROMPT</symbol>
+        <lines>27</lines>
+        <reason>DeepSeek-OCR prompt 參考 - 本地調用使用 '<image>\n<|grounding|>Convert the document to markdown.'，但 OpenAI API 調用簡化為 'Convert the document to markdown.'（不需要 <image> 和 <|grounding|> 標記）。</reason>
+      </file>
+    </code>
+    <dependencies>
+      <python>
+        <package name="openai" version=">=1.0.0" status="需要添加">OpenAI SDK - 用於 OpenAI Compatible API 調用。當前 requirements.txt 中不包含此依賴，需要確認是否已安裝或添加到 requirements.txt。</package>
+        <package name="Pillow" version="10.4.0" status="已安裝">圖像讀取（已在 requirements.txt）</package>
+        <package name="tqdm" version="4.67.1" status="已安裝">進度條（已在 requirements.txt）</package>
+        <stdlib>argparse - 命令行參數解析</stdlib>
+        <stdlib>base64 - 圖像 base64 編碼</stdlib>
+        <stdlib>os - 文件和目錄操作</stdlib>
+        <stdlib>re - 正則表達式處理</stdlib>
+        <stdlib>concurrent.futures - ThreadPoolExecutor 多線程</stdlib>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>代碼風格：Python 3.x，4 空格縮進，snake_case 函數命名，UPPER_CASE 常量命名</constraint>
+    <constraint>文件位置：推理腳本必須放在 tools/model_infer/ 目錄</constraint>
+    <constraint>架構模式：這是獨立工具腳本，不使用註冊表模式，不參與評估管道</constraint>
+    <constraint>後處理邏輯：必須完全移植 clean_formula() 和 re_match() 函數，保持邏輯一致</constraint>
+    <constraint>雙輸出：必須生成 _det.md (原始) 和 .md (清理後) 兩個文件</constraint>
+    <constraint>錯誤處理：使用 try-except 捕獲異常，打印 [ERROR] 前綴錯誤信息，失敗時不影響其他文件處理</constraint>
+    <constraint>命令行參數：使用 argparse，提供 --help 說明，使用長參數名</constraint>
+    <constraint>Prompt 使用：使用簡化 prompt 'Convert the document to markdown.'，不需要 <image> 和 <|grounding|> 標記</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>OpenAI Compatible API</name>
+      <kind>REST API</kind>
+      <signature>
+        POST /v1/chat/completions
+        Headers: Authorization: Bearer {api_key}
+        Body: {
+          "model": "{model_name}",
+          "messages": [{
+            "role": "user",
+            "content": [
+              {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{base64_string}"}},
+              {"type": "text", "text": "{prompt}"}
+            ]
+          }],
+          "temperature": 0.0
+        }
+      </signature>
+      <path>通過 OpenAI SDK client.chat.completions.create() 調用</path>
+    </interface>
+    <interface>
+      <name>get_deepseek_response</name>
+      <kind>函數接口</kind>
+      <signature>def get_deepseek_response(image_path: str, client: OpenAI, model_name: str) -> str</signature>
+      <path>tools/model_infer/deepseek_ocr_inf.py（待創建）</path>
+    </interface>
+    <interface>
+      <name>process_image</name>
+      <kind>函數接口</kind>
+      <signature>def process_image(args: tuple) -> str # args = (image_path, save_root, client, model_name)</signature>
+      <path>tools/model_infer/deepseek_ocr_inf.py（待創建）</path>
+    </interface>
+    <interface>
+      <name>clean_formula</name>
+      <kind>函數接口</kind>
+      <signature>def clean_formula(text: str) -> str</signature>
+      <path>tools/model_infer/deepseek_ocr_inf.py（待創建，從 configs/run_dpsk_ocr_eval_batch.py 移植）</path>
+    </interface>
+    <interface>
+      <name>re_match</name>
+      <kind>函數接口</kind>
+      <signature>def re_match(text: str) -> tuple[list, list]</signature>
+      <path>tools/model_infer/deepseek_ocr_inf.py（待創建，從 configs/run_dpsk_ocr_eval_batch.py 移植）</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      本項目使用 demo_data 進行驗證測試，無正式單元測試框架。推理腳本通過實際運行驗證功能正確性。測試方法包括：功能測試（使用 demo_data/omnidocbench_demo/images/ 測試）、輸出驗證（檢查 _det.md 和 .md 文件生成）、後處理驗證（確認特殊標記移除）、錯誤處理驗證（測試 API 失敗、圖像讀取失敗等場景）。
+    </standards>
+    <locations>
+      - 測試數據：demo_data/omnidocbench_demo/images/（官方演示圖像）
+      - 輸出目錄：用戶通過 --save_root 參數指定
+      - 驗證方式：檢查輸出文件存在性、內容正確性、統計信息準確性
+    </locations>
+    <ideas>
+      <idea ac="1">腳本執行測試 - 運行腳本驗證無語法錯誤，--help 參數顯示正確</idea>
+      <idea ac="2">API 調用測試 - 使用單張圖像測試 API 連通性和響應處理，驗證 base64 編碼正確</idea>
+      <idea ac="3">雙輸出測試 - 處理單張圖像，檢查 _det.md 和 .md 都生成，內容不同</idea>
+      <idea ac="4">後處理測試 - 檢查 .md 文件中無 \quad(...)、<|ref|>、<|det|>、<center> 標記，多餘換行被清理</idea>
+      <idea ac="5">並行處理測試 - 使用 10 個線程處理 demo_data 中所有圖像，驗證 tqdm 進度條顯示，所有文件被處理</idea>
+      <idea ac="6">錯誤處理測試 - 測試錯誤的 API endpoint、不存在的圖像路徑，驗證腳本不崩潰，顯示 [ERROR] 日誌</idea>
+      <idea ac="7">統計測試 - 混合成功和失敗的場景，驗證統計信息（總數/成功/失敗）顯示正確</idea>
+    </ideas>
+  </tests>
+</story-context>
