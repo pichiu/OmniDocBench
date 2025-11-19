@@ -1,5 +1,6 @@
 import argparse
 import base64
+import mimetypes
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -76,6 +77,11 @@ def get_deepseek_response(image_path, client, model_name):
             image_bytes = f.read()
         img_str = base64.b64encode(image_bytes).decode()
 
+        # 根據檔案類型自動判斷 MIME type
+        mime_type, _ = mimetypes.guess_type(image_path)
+        if mime_type is None or not mime_type.startswith("image/"):
+            mime_type = "image/jpeg"  # fallback to jpeg for unknown types
+
         # 調用 OpenAI Compatible API
         completion = client.chat.completions.create(
             model=model_name,
@@ -85,7 +91,7 @@ def get_deepseek_response(image_path, client, model_name):
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{img_str}"},
+                            "image_url": {"url": f"data:{mime_type};base64,{img_str}"},
                         },
                         {"type": "text", "text": PROMPT},
                     ],
