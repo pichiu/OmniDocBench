@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# Prepare commit message to enforce conventional commit format
+# This hook helps ensure commits follow the conventional commits specification
+#
+# Format: <type>(<scope>): <subject>
+#
+# <body>
+#
+# Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Skip if this is an amend, merge, or squash
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ]; then
+    exit 0
+fi
+
+# If message already exists (e.g., -m flag used), validate it
+if [ -s "$COMMIT_MSG_FILE" ]; then
+    # Read the first line
+    FIRST_LINE=$(head -n1 "$COMMIT_MSG_FILE")
+
+    # Skip comment lines
+    if echo "$FIRST_LINE" | grep -q "^#"; then
+        exit 0
+    fi
+
+    # Check if it follows conventional commit format
+    # Pattern breakdown:
+    # - Type: feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert
+    # - Optional scope: \([a-zA-Z0-9_-]+\)
+    # - Colon and space: ": "
+    # - Subject: [a-z].{2,} (starts lowercase, minimum 3 chars, no max length)
+    # - Allow uppercase letters in subject (e.g., API, DeepSeek-OCR)
+    if ! echo "$FIRST_LINE" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_-]+\))?: [a-z].{2,}[^.]$"; then
+        echo "❌ Commit message does not follow Conventional Commits format!"
+        echo ""
+        echo "Format: <type>(<scope>): <subject>"
+        echo ""
+        echo "Rules:"
+        echo "  - Type: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+        echo "  - Scope (optional): alphanumeric with hyphens or underscores"
+        echo "  - Subject: starts with lowercase, minimum 3 characters, no period at end"
+        echo "  - Subject can contain uppercase letters (e.g., API, OCR, proper nouns)"
+        echo ""
+        echo "Examples:"
+        echo "  ✓ feat(metrics): add new CDM evaluation metric"
+        echo "  ✓ fix(dataset): resolve matching algorithm edge case"
+        echo "  ✓ docs: update README with installation steps"
+        echo ""
+        echo "Your message: $FIRST_LINE"
+        exit 1
+    fi
+fi

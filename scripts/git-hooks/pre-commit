@@ -1,0 +1,37 @@
+#!/bin/sh
+#
+# Pre-commit hook that runs code review requirements
+#
+# This hook ensures:
+# 1. Pre-commit checks pass (black, isort, flake8, etc.)
+# 2. Reminds to run code-reviewer subagent
+#
+
+echo "🔍 Running pre-commit hooks..."
+
+# Get staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Run pre-commit hooks
+if command -v pre-commit >/dev/null 2>&1; then
+    if [ -n "$STAGED_FILES" ]; then
+        pre-commit run --files $STAGED_FILES
+        if [ $? -ne 0 ]; then
+            echo "❌ Pre-commit checks failed. Please fix the issues above."
+            exit 1
+        fi
+    else
+        echo "⚠️  No staged files to check."
+    fi
+else
+    echo "⚠️  Warning: pre-commit not found. Install with: pip install pre-commit"
+fi
+
+echo ""
+echo "✅ Pre-commit checks passed!"
+echo ""
+echo "📝 REMINDER: It's recommended to run the code-reviewer subagent"
+echo "   in Claude Code to review your changes before committing."
+echo ""
+
+exit 0
