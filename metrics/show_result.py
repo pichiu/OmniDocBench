@@ -2,6 +2,8 @@ from collections import defaultdict
 from tabulate import tabulate
 import pandas as pd
 import pdb
+from typing import Any
+
 
 def show_result(results):
     for metric_name in results.keys():
@@ -136,4 +138,104 @@ def get_page_split(samples, page_info):   # Page level metric
     result = sort_nested_dict(result)
     # print('----Page Attribute---------------')
     show_result(result)
+    return result
+
+
+def get_data_source_summary(
+    samples: list, page_info: dict, metrics_config: dict
+) -> dict[str, dict[str, Any]]:
+    """
+    按 data_source 分類彙總評估結果
+
+    此函數專門處理按文件來源（paper, presentation, handwriting 等）分類的統計，
+    支援多種指標的彙總計算。
+
+    Args:
+        samples: 評估樣本列表，每個樣本包含 img_id, metric, Edit_num, upper_len 等欄位
+        page_info: 頁面資訊字典，key 為圖片名稱（不含副檔名），value 包含 data_source 等屬性
+        metrics_config: 指標配置，用於確定需要彙總哪些指標
+
+    Returns:
+        按 data_source 分組的統計結果，格式為：
+        {
+            "paper": {
+                "count": 26,
+                "metrics": {
+                    "Edit_dist": {"value": 0.0167, "accuracy": 0.9833},
+                    "TEDS": {"value": 0.8912}
+                }
+            },
+            "presentation": {...},
+            ...
+        }
+    """
+    if not samples or not page_info:
+        return {}
+
+    # 按 data_source 分組收集樣本
+    data_source_samples = defaultdict(list)
+
+    for sample in samples:
+        # 從 img_id 取得圖片名稱（去除副檔名和索引後綴）
+        img_id = sample.get("img_id", "")
+        if img_id.endswith(".jpg") or img_id.endswith(".png"):
+            img_name = img_id[:-4]
+        else:
+            # 處理帶有索引後綴的情況，如 "image_0"
+            img_name = "_".join(img_id.split("_")[:-1]) if "_" in img_id else img_id
+
+        if img_name not in page_info:
+            continue
+
+        data_source = page_info[img_name].get("data_source", "unknown")
+        data_source_samples[data_source].append(sample)
+
+    # 計算每個 data_source 的統計
+    result = {}
+
+    for data_source, ds_samples in data_source_samples.items():
+        if not ds_samples:
+            continue
+
+        count = len(ds_samples)
+        metrics_result = {}
+
+        # 處理 Edit_dist 指標（需要特殊計算 accuracy）
+        if any(s.get("Edit_num") is not None for s in ds_samples):
+            total_edit = sum(s.get("Edit_num", 0) for s in ds_samples)
+            total_upper_len = sum(s.get("upper_len", 0) for s in ds_samples)
+
+            if total_upper_len > 0:
+                edit_dist_value = total_edit / total_upper_len
+                accuracy = 1.0 - edit_dist_value
+            else:
+                edit_dist_value = 0
+                accuracy = 1.0
+
+            metrics_result["Edit_dist"] = {"value": edit_dist_value, "accuracy": accuracy}
+
+        # 處理其他指標（TEDS, CDM, BLEU, METEOR 等）
+        for sample in ds_samples:
+            if not sample.get("metric"):
+                continue
+            for metric_name, metric_value in sample["metric"].items():
+                if metric_name == "Edit_dist":
+                    continue  # 已經處理過
+                if metric_name not in metrics_result:
+                    metrics_result[metric_name] = {"values": []}
+                if isinstance(metric_value, (int, float)) and metric_value != "NaN":
+                    metrics_result[metric_name]["values"].append(metric_value)
+
+        # 計算其他指標的平均值
+        for metric_name in list(metrics_result.keys()):
+            if metric_name == "Edit_dist":
+                continue
+            values = metrics_result[metric_name].get("values", [])
+            if values:
+                metrics_result[metric_name] = {"value": sum(values) / len(values)}
+            else:
+                del metrics_result[metric_name]
+
+        result[data_source] = {"count": count, "metrics": metrics_result}
+
     return result
