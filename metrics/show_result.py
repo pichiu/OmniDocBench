@@ -144,7 +144,7 @@ def get_page_split(samples, page_info):   # Page level metric
 
 
 def get_data_source_summary(
-    samples: list, page_info: dict, metrics_config: dict
+    samples: list, page_info: dict
 ) -> dict[str, dict[str, Any]]:
     """
     按 data_source 分類彙總評估結果
@@ -155,7 +155,6 @@ def get_data_source_summary(
     Args:
         samples: 評估樣本列表，每個樣本包含 img_id, metric, Edit_num, upper_len 等欄位
         page_info: 頁面資訊字典，key 為圖片名稱（不含副檔名），value 包含 data_source 等屬性
-        metrics_config: 指標配置，用於確定需要彙總哪些指標
 
     Returns:
         按 data_source 分組的統計結果，格式為：

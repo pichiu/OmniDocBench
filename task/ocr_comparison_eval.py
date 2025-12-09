@@ -274,7 +274,7 @@ class OCRComparisonEval:
                     continue
 
             # 計算按 data_source 分類的統計
-            by_data_source = get_data_source_summary(sample_list, self.page_info, element_config)
+            by_data_source = get_data_source_summary(sample_list, self.page_info)
             element_result["by_data_source"] = by_data_source
 
             model_result["elements"][element_type] = element_result
