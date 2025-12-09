@@ -55,6 +55,8 @@ class OCRReportGenerator:
         self,
         results: dict[str, dict[str, Any]],
         metrics_config: dict[str, dict],
+        gt_statistics: dict | None = None,
+        errors_data: dict[str, dict] | None = None,
     ):
         """
         初始化報告生成器
@@ -72,9 +74,13 @@ class OCRReportGenerator:
                     }
                 }
             metrics_config: 指標配置，格式與 YAML 中的 metrics 區塊相同
+            gt_statistics: Ground Truth 統計資訊（總頁數、各元素類型數量）
+            errors_data: 各模型的錯誤資訊，按元素類型和 data_source 分組
         """
         self.results = results
         self.metrics_config = metrics_config
+        self.gt_statistics = gt_statistics or {}
+        self.errors_data = errors_data or {}
         self.models = list(results.keys())
         self.generated_at = datetime.now()
 
@@ -108,6 +114,66 @@ class OCRReportGenerator:
         zh_name = self.CATEGORY_NAMES.get(category, category)
         return f"{zh_name} ({category})"
 
+    def _generate_dataset_overview(self) -> str:
+        """
+        生成資料集概覽區塊
+
+        Returns:
+            Markdown 格式的資料集概覽字串
+        """
+        if not self.gt_statistics:
+            return ""
+
+        lines = []
+        lines.append("## 資料集概覽")
+        lines.append("")
+
+        # 基本資訊
+        lines.append("| 項目 | 數值 |")
+        lines.append("|------|------|")
+        lines.append(f"| 總頁數 | {self.gt_statistics.get('total_pages', 'N/A')} |")
+        lines.append(
+            f"| Ground Truth 來源 | {self.gt_statistics.get('gt_source', 'N/A')} |"
+        )
+        lines.append("")
+
+        # Ground Truth 元素統計與匹配率
+        gt_elements = self.gt_statistics.get("elements", {})
+        if gt_elements:
+            lines.append("### Ground Truth 元素統計與匹配率")
+            lines.append("")
+
+            # 表頭
+            header = "| 元素類型 | GT 總數 |"
+            separator = "|----------|---------|"
+            for model in self.models:
+                header += f" {model} |"
+                separator += "----------|"
+
+            lines.append(header)
+            lines.append(separator)
+
+            # 各元素類型
+            for element_type, gt_count in gt_elements.items():
+                row = f"| {element_type} | {gt_count} |"
+
+                for model in self.models:
+                    model_data = self.results.get(model, {})
+                    element_data = model_data.get("elements", {}).get(element_type, {})
+                    sample_count = element_data.get("overall", {}).get("sample_count", 0)
+
+                    if gt_count > 0:
+                        match_rate = sample_count / gt_count * 100
+                        row += f" {sample_count} ({match_rate:.1f}%) |"
+                    else:
+                        row += f" {sample_count} (N/A) |"
+
+                lines.append(row)
+
+            lines.append("")
+
+        return "\n".join(lines)
+
     def generate_markdown(self) -> str:
         """
         生成 Markdown 格式報告
@@ -120,6 +186,11 @@ class OCRReportGenerator:
         lines.append("")
         lines.append(f"生成時間: {self.generated_at.strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append("")
+
+        # 資料集概覽區塊
+        dataset_overview = self._generate_dataset_overview()
+        if dataset_overview:
+            lines.append(dataset_overview)
 
         # 總覽區塊
         lines.append("## 總覽")
@@ -262,11 +333,86 @@ class OCRReportGenerator:
         for element_type, element_config in self.metrics_config.items():
             config_metrics[element_type] = element_config.get("metric", [])
 
-        return {
+        result = {
             "generated_at": self.generated_at.isoformat(),
             "config": {"metrics": config_metrics},
-            "models": self.results,
         }
+
+        # 加入資料集概覽
+        if self.gt_statistics:
+            result["dataset_overview"] = self.gt_statistics
+
+        result["models"] = self.results
+
+        return result
+
+    def generate_errors_analysis(self) -> dict:
+        """
+        生成錯誤分析結構化報告
+
+        Returns:
+            錯誤分析字典，包含摘要和詳細錯誤
+        """
+        analysis = {
+            "generated_at": self.generated_at.isoformat(),
+            "summary": {},
+            "errors_by_data_source": {},
+        }
+
+        gt_elements = self.gt_statistics.get("elements", {})
+
+        # 計算摘要
+        for element_type in gt_elements:
+            gt_count = gt_elements[element_type]
+            analysis["summary"][element_type] = {
+                "gt_total": gt_count,
+                "models": {},
+            }
+
+            for model in self.models:
+                model_data = self.results.get(model, {})
+                element_data = model_data.get("elements", {}).get(element_type, {})
+                sample_count = element_data.get("overall", {}).get("sample_count", 0)
+
+                # 計算錯誤統計
+                model_errors = self.errors_data.get(model, {}).get(element_type, {})
+                error_count = sum(len(items) for items in model_errors.values())
+                unmatched_count = sum(
+                    len([i for i in items if i.get("error_type") == "unmatched"])
+                    for items in model_errors.values()
+                )
+                mismatched_count = error_count - unmatched_count
+
+                analysis["summary"][element_type]["models"][model] = {
+                    "total_samples": sample_count,
+                    "error_count": error_count,
+                    "unmatched_count": unmatched_count,
+                    "mismatched_count": mismatched_count,
+                    "accuracy": (sample_count - error_count) / sample_count
+                    if sample_count > 0
+                    else 0,
+                }
+
+        # 按 data_source 組織詳細錯誤
+        for model in self.models:
+            analysis["errors_by_data_source"][model] = {}
+
+            model_errors = self.errors_data.get(model, {})
+            for element_type, ds_errors in model_errors.items():
+                if ds_errors:
+                    analysis["errors_by_data_source"][model][element_type] = {}
+
+                    sorted_ds = self._get_sorted_categories(set(ds_errors.keys()))
+                    for data_source in sorted_ds:
+                        items = ds_errors[data_source]
+                        analysis["errors_by_data_source"][model][element_type][
+                            data_source
+                        ] = {
+                            "count": len(items),
+                            "items": items,
+                        }
+
+        return analysis
 
     def save_reports(
         self,
@@ -274,6 +420,7 @@ class OCRReportGenerator:
         base_name: str = "ocr_comparison_report",
         generate_markdown: bool = True,
         generate_json: bool = True,
+        generate_errors: bool = True,
     ) -> dict[str, str]:
         """
         儲存報告到檔案
@@ -283,6 +430,7 @@ class OCRReportGenerator:
             base_name: 報告檔案基礎名稱
             generate_markdown: 是否生成 Markdown 報告
             generate_json: 是否生成 JSON 報告
+            generate_errors: 是否生成錯誤分析 JSON
 
         Returns:
             生成的檔案路徑字典
@@ -303,5 +451,14 @@ class OCRReportGenerator:
                 json.dump(self.generate_json(), f, indent=2, ensure_ascii=False)
             saved_files["json"] = json_path
             print(f"JSON 報告已儲存至: {json_path}")
+
+        if generate_errors and self.errors_data:
+            errors_path = os.path.join(output_dir, f"{base_name}_errors.json")
+            with open(errors_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    self.generate_errors_analysis(), f, indent=2, ensure_ascii=False
+                )
+            saved_files["errors"] = errors_path
+            print(f"錯誤分析報告已儲存至: {errors_path}")
 
         return saved_files

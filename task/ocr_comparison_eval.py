@@ -48,15 +48,107 @@ class OCRComparisonEval:
         """載入頁面資訊，用於 data_source 分類"""
         page_info = {}
         with open(self.gt_path, "r", encoding="utf-8") as f:
-            pages = json.load(f)
+            self._gt_pages = json.load(f)  # 保存以便後續計算 GT 統計
 
-        for page in pages:
+        for page in self._gt_pages:
             img_path = os.path.basename(page["page_info"]["image_path"])
             # 去除副檔名
             img_name = img_path[:-4] if img_path.endswith((".jpg", ".png")) else img_path
             page_info[img_name] = page["page_info"].get("page_attribute", {})
 
         return page_info
+
+    def _get_gt_statistics(self) -> dict:
+        """
+        計算 Ground Truth 中各元素類型的總數
+
+        Returns:
+            包含總頁數、GT 來源路徑和各元素類型數量的字典
+        """
+        gt_stats = {
+            "total_pages": len(self._gt_pages),
+            "gt_source": os.path.basename(self.gt_path),
+            "elements": {},
+        }
+
+        # GT 類別到報告元素類型的映射
+        type_mapping = {
+            "text_block": "text_block",
+            "equation_isolated": "display_formula",
+            "table": "table",
+        }
+
+        for element_type in self.metrics_config.keys():
+            if element_type == "reading_order":
+                # reading_order 每頁一個
+                gt_stats["elements"][element_type] = len(self._gt_pages)
+            else:
+                count = 0
+                for page in self._gt_pages:
+                    for det in page.get("layout_dets", []):
+                        gt_type = type_mapping.get(det.get("category_type"))
+                        if gt_type == element_type:
+                            count += 1
+                gt_stats["elements"][element_type] = count
+
+        return gt_stats
+
+    def _collect_errors(
+        self, samples_dict: dict
+    ) -> dict[str, dict[str, list]]:
+        """
+        收集所有錯誤項目（Edit_dist > 0），按 data_source 分組
+
+        Args:
+            samples_dict: 各元素類型的樣本字典
+
+        Returns:
+            按元素類型和 data_source 組織的錯誤列表
+        """
+        errors = {}
+        for element_type, samples in samples_dict.items():
+            sample_list = samples.samples if hasattr(samples, "samples") else samples
+            if not sample_list:
+                continue
+
+            errors[element_type] = {}  # key: data_source
+
+            for sample in sample_list:
+                edit_dist = sample.get("metric", {}).get("Edit_dist", 0)
+
+                # 只收集有錯誤的項目
+                if edit_dist > 0:
+                    data_source = self.page_info.get(
+                        sample.get("img_id"), {}
+                    ).get("data_source", "unknown")
+
+                    if data_source not in errors[element_type]:
+                        errors[element_type][data_source] = []
+
+                    item = {
+                        "img_id": sample.get("img_id"),
+                        "edit_dist": edit_dist,
+                        "gt_text": sample.get("gt", ""),
+                        "pred_text": sample.get("pred", ""),
+                    }
+
+                    # 標記錯誤類型：未匹配（模型完全沒輸出）或錯誤匹配
+                    if sample.get("pred_idx") == [""] or sample.get("pred", "") == "":
+                        item["error_type"] = "unmatched"
+                    else:
+                        item["error_type"] = "mismatched"
+
+                    # 加入 GT 屬性（如有）
+                    gt_attr = sample.get("gt_attribute")
+                    if gt_attr:
+                        if isinstance(gt_attr, list) and gt_attr:
+                            item["gt_attribute"] = gt_attr[0]
+                        else:
+                            item["gt_attribute"] = gt_attr
+
+                    errors[element_type][data_source].append(item)
+
+        return errors
 
     def _build_single_model_config(self, model: dict) -> dict:
         """
@@ -78,7 +170,7 @@ class OCRComparisonEval:
             "metrics": self.metrics_config,
         }
 
-    def _evaluate_single_model(self, model: dict) -> dict[str, Any]:
+    def _evaluate_single_model(self, model: dict) -> tuple[dict[str, Any], dict]:
         """
         評估單一模型
 
@@ -86,7 +178,7 @@ class OCRComparisonEval:
             model: 模型配置
 
         Returns:
-            模型評估結果，按元素類型和指標組織
+            tuple: (模型評估結果, 評估後的樣本字典)
         """
         model_name = model["name"]
         print(f"\n評估模型: {model_name}")
@@ -97,6 +189,7 @@ class OCRComparisonEval:
         dataset = DATASET_REGISTRY.get("end2end_dataset")(single_config)
 
         model_result = {"elements": {}}
+        evaluated_samples_dict = {}  # 保存評估後的樣本
 
         # 對每個元素類型執行評估
         for element_type, element_config in self.metrics_config.items():
@@ -169,13 +262,16 @@ class OCRComparisonEval:
 
             model_result["elements"][element_type] = element_result
 
+            # 保存評估後的樣本（包含 metric 資訊）
+            evaluated_samples_dict[element_type] = sample_list
+
             # 輸出整體指標
             overall_metrics = {
                 k: v for k, v in element_result["overall"].items() if k != "sample_count"
             }
             print(f"    整體指標: {overall_metrics}")
 
-        return model_result
+        return model_result, evaluated_samples_dict
 
     def run(self) -> dict[str, Any]:
         """
@@ -185,6 +281,7 @@ class OCRComparisonEval:
             所有模型的評估結果
         """
         all_results = {}
+        all_errors = {}  # 收集各模型的錯誤資訊
 
         for model in self.models:
             model_name = model["name"]
@@ -194,26 +291,46 @@ class OCRComparisonEval:
                 print(f"警告: 模型 {model_name} 的預測目錄不存在: {prediction_path}")
                 continue
 
-            result = self._evaluate_single_model(model)
+            result, samples_dict = self._evaluate_single_model(model)
             all_results[model_name] = result
+
+            # 收集該模型的錯誤資訊
+            all_errors[model_name] = self._collect_errors(samples_dict)
 
         # 生成報告
         if all_results and self.output_config:
-            self._generate_reports(all_results)
+            gt_statistics = self._get_gt_statistics()
+            self._generate_reports(all_results, gt_statistics, all_errors)
 
         return all_results
 
-    def _generate_reports(self, results: dict[str, Any]):
-        """生成評估報告"""
+    def _generate_reports(
+        self,
+        results: dict[str, Any],
+        gt_statistics: dict,
+        errors_data: dict[str, dict],
+    ):
+        """
+        生成評估報告
+
+        Args:
+            results: 各模型的評估結果
+            gt_statistics: Ground Truth 統計資訊
+            errors_data: 各模型的錯誤資訊
+        """
         output_dir = self.output_config.get("output_dir", "./result")
         report_name = self.output_config.get("report_name", "ocr_comparison_report")
         generate_markdown = self.output_config.get("generate_markdown", True)
         generate_json = self.output_config.get("generate_json", True)
+        generate_errors = self.output_config.get("generate_errors", True)
 
-        generator = OCRReportGenerator(results, self.metrics_config)
+        generator = OCRReportGenerator(
+            results, self.metrics_config, gt_statistics, errors_data
+        )
         generator.save_reports(
             output_dir=output_dir,
             base_name=report_name,
             generate_markdown=generate_markdown,
             generate_json=generate_json,
+            generate_errors=generate_errors,
         )
