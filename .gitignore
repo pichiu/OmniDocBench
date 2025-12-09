@@ -26,4 +26,4 @@ configs/
 .clinerules/
 .env
 .venv/
-doc_ocr_dataset/
+# doc_ocr_dataset is now a submodule
