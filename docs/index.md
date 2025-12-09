@@ -91,6 +91,24 @@ OmniDocBench 是一個專門設計用於評估文檔解析性能的基準測試�
 
 ### 1. 安裝
 
+#### 方法 A：使用 uv（推薦，速度更快）
+
+```bash
+# 安裝 uv（如果尚未安裝）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 克隆倉庫
+git clone https://github.com/opendatalab/OmniDocBench.git
+cd OmniDocBench
+
+# 創建虛擬環境並安裝依賴
+uv venv .venv
+source .venv/bin/activate  # Linux/macOS
+uv pip install -r requirements.txt
+```
+
+#### 方法 B：使用 pip
+
 ```bash
 # 克隆倉庫
 git clone https://github.com/opendatalab/OmniDocBench.git

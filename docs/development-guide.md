@@ -16,13 +16,47 @@
 ### 必需工具
 
 - **Python 3.7+**
-- **pip** （Python 包管理器）
+- **pip** 或 **uv** （Python 包管理器）
 - **Git** （版本控制）
 - **Docker** （可選，用於容器化環境）
 
 ## 環境設置
 
-### 方法 1：標準 Python 環境
+### 方法 1：使用 uv（推薦，速度更快）
+
+[uv](https://github.com/astral-sh/uv) 是一個極快的 Python 包管理器，可以顯著加速環境設置。
+
+#### 1. 安裝 uv
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+#### 2. 克隆倉庫並設置環境
+
+```bash
+git clone https://github.com/opendatalab/OmniDocBench.git
+cd OmniDocBench
+
+# 創建虛擬環境並安裝依賴
+uv venv .venv
+source .venv/bin/activate  # Linux/macOS
+# 或 .venv\Scripts\activate  # Windows
+
+uv pip install -r requirements.txt
+```
+
+#### 3. 驗證安裝
+
+```bash
+python -c "import numpy, pandas, cv2; print('Installation successful!')"
+```
+
+### 方法 2：標準 Python 環境（使用 pip）
 
 #### 1. 克隆倉庫
 
@@ -54,10 +88,10 @@ pip install -r requirements.txt
 #### 4. 驗證安裝
 
 ```bash
-python -c "import numpy, pandas, opencv; print('Installation successful!')"
+python -c "import numpy, pandas, cv2; print('Installation successful!')"
 ```
 
-### 方法 2：使用 Docker
+### 方法 3：使用 Docker
 
 **Docker 環境**（v1.5+ 支持）
 
