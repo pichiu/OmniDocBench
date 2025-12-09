@@ -5,9 +5,11 @@ OCR 多模型比較評估任務
 並整合報告生成功能。
 """
 
+from __future__ import annotations
+
 import json
 import os
-from typing import Any
+from typing import Any, Dict, List, Tuple
 
 from registry.registry import DATASET_REGISTRY, EVAL_TASK_REGISTRY, METRIC_REGISTRY
 from metrics.report_generator import OCRReportGenerator
@@ -118,9 +120,24 @@ class OCRComparisonEval:
 
                 # 只收集有錯誤的項目
                 if edit_dist > 0:
-                    data_source = self.page_info.get(
-                        sample.get("img_id"), {}
-                    ).get("data_source", "unknown")
+                    # 從 img_id 取得圖片名稱（去除副檔名和索引後綴）
+                    img_id = sample.get("img_id", "")
+                    if isinstance(img_id, str):
+                        if img_id.endswith(".jpg") or img_id.endswith(".png"):
+                            img_name = img_id[:-4]
+                        else:
+                            # 處理帶有數字索引後綴的情況，如 "image_0" -> "image"
+                            parts = img_id.rsplit("_", 1)
+                            if len(parts) == 2 and parts[1].isdigit():
+                                img_name = parts[0]
+                            else:
+                                img_name = img_id
+                    else:
+                        img_name = str(img_id)
+
+                    data_source = self.page_info.get(img_name, {}).get(
+                        "data_source", "unknown"
+                    )
 
                     if data_source not in errors[element_type]:
                         errors[element_type][data_source] = []

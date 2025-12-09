@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from collections import defaultdict
-from tabulate import tabulate
+from typing import Any, Dict, List
+
 import pandas as pd
-import pdb
-from typing import Any
+from tabulate import tabulate
 
 
 def show_result(results):
@@ -181,8 +183,12 @@ def get_data_source_summary(
         if img_id.endswith(".jpg") or img_id.endswith(".png"):
             img_name = img_id[:-4]
         else:
-            # 處理帶有索引後綴的情況，如 "image_0"
-            img_name = "_".join(img_id.split("_")[:-1]) if "_" in img_id else img_id
+            # 處理帶有數字索引後綴的情況，如 "image_0" -> "image"
+            parts = img_id.rsplit("_", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                img_name = parts[0]
+            else:
+                img_name = img_id
 
         if img_name not in page_info:
             continue

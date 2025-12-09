@@ -5,10 +5,12 @@ OCR 評估報告生成器
 報告內容根據配置中的 metrics 設定動態生成。
 """
 
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 
 class OCRReportGenerator:
