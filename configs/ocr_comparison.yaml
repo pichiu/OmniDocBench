@@ -1,0 +1,48 @@
+# OCR 多模型比較評估配置
+# 用法: python pdf_validation.py --config configs/ocr_comparison.yaml
+#
+# 此配置用於同時評估多個 OCR 模型，並生成比較報告。
+# metrics 區塊結構與 end2end_eval 相同，可直接複製現有配置。
+
+ocr_comparison_eval:
+  # 待評估的模型列表
+  models:
+    - name: PaddleOCR
+      prediction_path: ./doc_ocr_dataset/paddleocr-merged
+    - name: DeepSeek-OCR
+      prediction_path: ./doc_ocr_dataset/deepseek-ocr-merged
+
+  # Ground Truth 設定
+  ground_truth:
+    data_path: ./doc_ocr_dataset/omnidocbench_1126_fixed.json
+
+  # 匹配方法: quick_match, simple_match, no_split
+  match_method: quick_match
+
+  # 指標設定（與 end2end_eval 相同結構）
+  # 使用者設定什麼，報告就呈現什麼
+  # 註解/取消註解即可控制評估範圍
+  metrics:
+    text_block:
+      metric:
+        - Edit_dist
+        # - BLEU
+        # - METEOR
+    display_formula:
+      metric:
+        - Edit_dist
+        # - CDM
+    table:
+      metric:
+        - TEDS
+        - Edit_dist
+    reading_order:
+      metric:
+        - Edit_dist
+
+  # 輸出設定
+  output:
+    generate_markdown: true
+    generate_json: true
+    output_dir: ./result
+    report_name: ocr_comparison_report
