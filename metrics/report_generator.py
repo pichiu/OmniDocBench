@@ -46,12 +46,18 @@ class OCRReportGenerator:
     # 指標說明
     METRIC_DESCRIPTIONS = {
         "Edit_dist": "歸一化編輯距離 (0-1)，越低越好",
+        "Edit_dist_ALL_page_avg": "頁面層級平均編輯距離",
+        "Edit_dist_edit_whole": "整體編輯距離（所有字元合併計算）",
+        "Edit_dist_edit_sample_avg": "樣本層級平均編輯距離",
         "TEDS": "表格結構編輯距離相似度 (0-1)，越高越好",
         "TEDS_structure_only": "表格結構相似度（僅結構）(0-1)，越高越好",
         "CDM": "公式字元偵測匹配分數 (0-1)，越高越好",
         "BLEU": "BLEU 分數 (0-1)，越高越好",
         "METEOR": "METEOR 分數 (0-1)，越高越好",
     }
+
+    # Edit_dist 子指標列表
+    EDIT_DIST_SUB_METRICS = ["ALL_page_avg", "edit_whole", "edit_sample_avg"]
 
     def __init__(
         self,
@@ -206,11 +212,22 @@ class OCRReportGenerator:
             lines.append(f"### {element_type}")
             lines.append("")
 
+            # 展開 Edit_dist 為子指標
+            expanded_metrics = []
+            for metric in metrics:
+                if metric == "Edit_dist":
+                    for sub in self.EDIT_DIST_SUB_METRICS:
+                        expanded_metrics.append(f"Edit_dist_{sub}")
+                else:
+                    expanded_metrics.append(metric)
+
             # 表頭
             header = "| 模型 | 樣本數 |"
             separator = "|------|--------|"
-            for metric in metrics:
-                header += f" {metric} |"
+            for metric in expanded_metrics:
+                # 簡化顯示名稱
+                display_name = metric.replace("Edit_dist_", "")
+                header += f" {display_name} |"
                 separator += "--------|"
 
             lines.append(header)
@@ -225,9 +242,11 @@ class OCRReportGenerator:
                 sample_count = overall.get("sample_count", 0)
                 row = f"| {model} | {sample_count} |"
 
-                for metric in metrics:
+                for metric in expanded_metrics:
                     metric_value = overall.get(metric)
-                    row += f" {self._format_metric_value(metric, metric_value)} |"
+                    # Edit_dist 子指標也使用準確率格式
+                    base_metric = "Edit_dist" if metric.startswith("Edit_dist") else metric
+                    row += f" {self._format_metric_value(base_metric, metric_value)} |"
 
                 lines.append(row)
 

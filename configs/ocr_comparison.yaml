@@ -14,7 +14,7 @@ ocr_comparison_eval:
 
   # Ground Truth 設定
   ground_truth:
-    data_path: ./doc_ocr_dataset/omnidocbench_1126_fixed.json
+    data_path: ./doc_ocr_dataset/omnidocbench_1211_132_fixed.json
 
   # 匹配方法: quick_match, simple_match, no_split
   match_method: quick_match

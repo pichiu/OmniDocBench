@@ -252,10 +252,16 @@ class OCRComparisonEval:
                     # 提取整體指標值
                     if metric_result and metric_name in metric_result:
                         metric_data = metric_result[metric_name]
-                        # 優先使用 edit_whole（整體準確率），否則使用 all 或第一個值
                         if isinstance(metric_data, dict):
-                            if "edit_whole" in metric_data:
-                                element_result["overall"][metric_name] = metric_data["edit_whole"]
+                            # Edit_dist 特殊處理：保存所有三個子指標
+                            if metric_name == "Edit_dist":
+                                # 保存所有子指標（ALL_page_avg, edit_whole, edit_sample_avg）
+                                for sub_metric, sub_value in metric_data.items():
+                                    if sub_value != "NaN":
+                                        element_result["overall"][f"{metric_name}_{sub_metric}"] = sub_value
+                                # 同時保存主指標（使用 edit_whole 作為主要值）
+                                if "edit_whole" in metric_data:
+                                    element_result["overall"][metric_name] = metric_data["edit_whole"]
                             elif "all" in metric_data:
                                 element_result["overall"][metric_name] = metric_data["all"]
                             elif "ALL_page_avg" in metric_data:
